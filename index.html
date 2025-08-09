@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>Interactive Rubik's Cube with Lock & Slice Rotation</title>
+<title>Rubik's Cube 3D - Responsive Dark Mode</title>
 <style>
   body, html {
     margin: 0; padding: 0;
@@ -77,31 +77,35 @@
   (() => {
     const container = document.getElementById('container');
 
-    // Three.js setup
+    // Three.js scene setup
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(5, 5, 7);
 
+    // Camera: Positioned a bit further & looking at center
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(6, 6, 8);
+    camera.lookAt(0, 0, 0);
+
+    // Renderer setup
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setClearColor(0x121212);
     container.appendChild(renderer.domElement);
 
-    // OrbitControls for full cube rotation (initially enabled)
+    // OrbitControls - enabled initially for whole cube rotation
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.07;
     controls.enablePan = false;
     controls.minDistance = 5;
-    controls.maxDistance = 15;
+    controls.maxDistance = 20;
 
     // Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.5));
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
-    directionalLight.position.set(0, 5, 5);
+    directionalLight.position.set(0, 10, 10);
     scene.add(directionalLight);
 
-    // Cube parameters
+    // Cube params
     const cubeSize = 3;
     const cubeGap = 0.05;
     const cubeUnitSize = 1;
@@ -117,7 +121,7 @@
       R: 0x00ff00  // Right - Green
     };
 
-    // Create materials for each cubie face
+    // Create materials for cubie faces
     function createCubieMaterials(x, y, z) {
       const black = new THREE.MeshBasicMaterial({ color: 0x000000 });
       const materials = [];
@@ -132,10 +136,10 @@
       return materials;
     }
 
-    // Create cubies
-    for(let x = -1; x <=1; x++) {
-      for(let y = -1; y <=1; y++) {
-        for(let z = -1; z <=1; z++) {
+    // Create cubies and add to scene
+    for(let x = -1; x <= 1; x++) {
+      for(let y = -1; y <= 1; y++) {
+        for(let z = -1; z <= 1; z++) {
           const geometry = new THREE.BoxGeometry(cubeUnitSize, cubeUnitSize, cubeUnitSize);
           const materials = createCubieMaterials(x, y, z);
           const cubie = new THREE.Mesh(geometry, materials);
@@ -157,7 +161,7 @@
     const rotatingGroup = new THREE.Group();
     scene.add(rotatingGroup);
 
-    // Rotation state variables
+    // Rotation state
     let isRotating = false;
     let rotationAxis = null;
     let rotatingCubies = [];
@@ -165,10 +169,10 @@
     let rotationAngle = 0;
     let rotationSpeed = Math.PI / 20;
 
-    // Move queue for animation
+    // Move queue
     const moveQueue = [];
 
-    // Function to get cubies on layer
+    // Get cubies on layer
     function getCubiesOnLayer(axis, index) {
       return cubies.filter(c => Math.round(c.userData[axis]) === index);
     }
@@ -211,7 +215,6 @@
           c.position.y = Math.round(c.position.y * 1000) / 1000;
           c.position.z = Math.round(c.position.z * 1000) / 1000;
 
-          // Update userData coords
           c.userData.x = Math.round(c.position.x / (cubeUnitSize + cubeGap));
           c.userData.y = Math.round(c.position.y / (cubeUnitSize + cubeGap));
           c.userData.z = Math.round(c.position.z / (cubeUnitSize + cubeGap));
@@ -277,7 +280,7 @@
       }
     }
 
-    // === Lock / Unlock Cube rotation ===
+    // Lock / Unlock cube rotation
     const lockBtn = document.getElementById('lockBtn');
     let locked = false;
 
@@ -287,18 +290,17 @@
       lockBtn.textContent = locked ? 'Unlock Cube (Enable Full Rotation)' : 'Lock Cube (Enable Slice Rotation)';
     });
 
-    // Raycaster and mouse/touch for slice rotation
+    // Raycaster and pointer
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     let dragging = false;
     let dragStartPoint = null;
-    let dragStartPos = null;
     let selectedCubie = null;
     let selectedFaceNormal = null;
     let dragPlane = new THREE.Plane();
     let dragIntersect = new THREE.Vector3();
 
-    // Calculate mouse/touch coords normalized
+    // Normalize pointer coordinates
     function getMousePos(event) {
       const rect = container.getBoundingClientRect();
       let x, y;
@@ -324,7 +326,7 @@
       return null;
     }
 
-    // Mouse / touch down
+    // Pointer down
     function onPointerDown(event) {
       if (!locked || isRotating) return;
       const intersect = getIntersect(event);
@@ -334,56 +336,38 @@
       selectedCubie = intersect.object;
       selectedFaceNormal = intersect.face.normal.clone();
       dragStartPoint = intersect.point.clone();
-      dragStartPos = { x: event.clientX || event.touches[0].clientX, y: event.clientY || event.touches[0].clientY };
 
-      // Set drag plane perpendicular to camera view and intersect point
       dragPlane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()).clone().negate(), intersect.point);
     }
 
-    // Mouse / touch move
+    // Pointer move
     function onPointerMove(event) {
       if (!dragging || !locked || isRotating) return;
 
-      // Calculate drag vector on dragPlane
       getMousePos(event);
       raycaster.setFromCamera(mouse, camera);
       if (raycaster.ray.intersectPlane(dragPlane, dragIntersect)) {
         const dragVector = new THREE.Vector3().subVectors(dragIntersect, dragStartPoint);
-        if (dragVector.length() > 0.3) { // threshold to start rotation
-          // Determine rotation axis and layer based on dragVector and face normal
-
-          // We choose the primary axis closest to the drag
-          const absX = Math.abs(dragVector.x);
-          const absY = Math.abs(dragVector.y);
-          const absZ = Math.abs(dragVector.z);
-
-          // Determine axis for rotation
-          let axis, index, clockwise;
-
-          // Cross product of face normal and drag direction to find rotation axis
+        if (dragVector.length() > 0.3) {
           const dragDir = dragVector.clone().normalize();
           const axisVec = new THREE.Vector3().crossVectors(selectedFaceNormal, dragDir).round();
 
-          // Find axis letter from axisVec
+          let axis, index, clockwise;
+
           if (Math.abs(axisVec.x) > 0.5) axis = 'x';
           else if (Math.abs(axisVec.y) > 0.5) axis = 'y';
           else axis = 'z';
 
-          // Find index for layer from selected cubie's userData
           index = selectedCubie.userData[axis];
+          clockwise = dragDir.dot(axisVec) > 0;
 
-          // Determine clockwise or counterclockwise by dot product of dragDir and axisVec cross
-          const sign = dragDir.dot(axisVec);
-          clockwise = sign > 0;
-
-          // Enqueue rotation move and reset dragging
           moveQueue.push({ axis, index, clockwise });
           dragging = false;
         }
       }
     }
 
-    // Mouse / touch up
+    // Pointer up
     function onPointerUp(event) {
       dragging = false;
       selectedCubie = null;
@@ -431,4 +415,4 @@
   })();
   </script>
 </body>
-</html>
+  </html>
